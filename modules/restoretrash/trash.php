@@ -26,65 +26,7 @@ $http = eZHTTPTool::instance();
 $user = eZUser::currentUser();
 $userID = $user->id();
 
-if ( $http->hasPostVariable( 'RemoveButton' )  )
-{
-    if ( $http->hasPostVariable( 'DeleteIDArray' ) )
-    {
-        $access = $user->hasAccessTo( 'content', 'cleantrash' );
-        if ( $access['accessWord'] == 'yes' || $access['accessWord'] == 'limited' )
-        {
-            $deleteIDArray = $http->postVariable( 'DeleteIDArray' );
-
-            foreach ( $deleteIDArray as $deleteID )
-            {
-
-                $objectList = eZPersistentObject::fetchObjectList( eZContentObject::definition(),
-                                                                   null,
-                                                                   array( 'id' => $deleteID ),
-                                                                   null,
-                                                                   null,
-                                                                   true );
-                foreach ( $objectList as $object )
-                {
-                    $object->purge();
-                }
-            }
-        }
-        else
-        {
-            return $Module->handleError( eZError::KERNEL_ACCESS_DENIED, 'kernel' );
-        }
-    }
-}
-else if ( $http->hasPostVariable( 'EmptyButton' )  )
-{
-    $access = $user->hasAccessTo( 'content', 'cleantrash' );
-    if ( $access['accessWord'] == 'yes' || $access['accessWord'] == 'limited' )
-    {
-        while ( true )
-        {
-            // Fetch 100 objects at a time, to limit transaction size
-            $objectList = eZPersistentObject::fetchObjectList( eZContentObject::definition(),
-                                                               null,
-                                                               array( 'status' => eZContentObject::STATUS_ARCHIVED ),
-                                                               null,
-                                                               100,
-                                                               true );
-            if ( count( $objectList ) < 1 )
-                break;
-
-            foreach ( $objectList as $object )
-            {
-                $object->purge();
-            }
-        }
-    }
-    else
-    {
-        return $Module->handleError( eZError::KERNEL_ACCESS_DENIED, 'kernel' );
-    }
-}
-else if ( $http->hasPostVariable( 'RestoreSubtreeButton' )  ) {	
+if ( $http->hasPostVariable( 'RestoreSubtreeButton' )  ) {	
 	if ( $http->hasPostVariable( 'DeleteIDArray' ) )
     {
         $access = $user->hasAccessTo( 'content', 'restore' );
@@ -97,7 +39,21 @@ else if ( $http->hasPostVariable( 'RestoreSubtreeButton' )  ) {
 			if( count( $rows ) > 0 ) {
 				foreach ( $rows as $row )
 				{
-					$restoredNodes = array_merge($restoredNodes, restoreSubtree( $row['contentobject_id'], $db ));
+					$object = eZContentObjectTrashNode::fetchObject( eZContentObjectTrashNode::definition(),
+                                                               null,
+                                                               array( 'contentobject_id' => $row['contentobject_id'] ),
+                                                               null,
+                                                               null,
+                                                               true );
+					if ( $object ) {
+						$trashObj = new eZContentObjectTrashNode( $object );
+						if ( !$trashObj->originalParent() ) {
+							return $Module->redirectToView( 'restore', array( $row['contentobject_id'] ) );
+						}
+						else {
+							$restoredNodes = array_merge($restoredNodes, restoreSubtree( $row['contentobject_id'], $db ));
+						}
+					}
 				}				
 			}
         }
